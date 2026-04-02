@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Momentum Call Parser — NeoCloud & GPU Insights</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #242836;
+            --border: #2e3348;
+            --accent: #6c63ff;
+            --accent-hover: #5a52e0;
+            --text: #e4e4e7;
+            --text-muted: #9ca3af;
+            --green: #34d399;
+            --orange: #fb923c;
+            --red: #f87171;
+            --blue: #60a5fa;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+        /* Header */
+        .header {
+            display: flex; align-items: center; gap: 16px;
+            margin-bottom: 32px; padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 { font-size: 24px; font-weight: 700; }
+        .header h1 span { color: var(--accent); }
+        .badge {
+            background: var(--accent); color: white;
+            padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+        }
+
+        /* Auth Panel */
+        .auth-panel {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 32px; max-width: 600px;
+            margin: 80px auto;
+        }
+        .auth-panel h2 { margin-bottom: 8px; font-size: 20px; }
+        .auth-panel p { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; }
+
+        /* Forms */
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted); }
+        input[type="text"], input[type="password"] {
+            width: 100%; padding: 10px 14px; background: var(--surface2);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); font-size: 14px; outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--accent); }
+        .form-group { margin-bottom: 16px; }
+
+        .btn {
+            padding: 10px 24px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary {
+            background: var(--surface2); color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+        .btn-group { display: flex; gap: 8px; margin-top: 20px; }
+
+        /* Radio options */
+        .mode-options { display: flex; gap: 12px; margin-bottom: 16px; }
+        .mode-option {
+            flex: 1; padding: 14px; background: var(--surface2);
+            border: 2px solid var(--border); border-radius: 10px;
+            cursor: pointer; transition: all 0.2s; text-align: center;
+        }
+        .mode-option:hover { border-color: var(--accent); }
+        .mode-option.active { border-color: var(--accent); background: rgba(108, 99, 255, 0.1); }
+        .mode-option h3 { font-size: 14px; margin-bottom: 4px; }
+        .mode-option p { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+        /* Main app layout */
+        .app { display: none; }
+        .app.visible { display: block; }
+
+        /* Controls bar */
+        .controls {
+            display: flex; align-items: center; gap: 12px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px; margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .controls .info { margin-left: auto; font-size: 13px; color: var(--text-muted); }
+
+        /* Stats row */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px;
+        }
+        .stat-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+        .stat-card .value.accent { color: var(--accent); }
+        .stat-card .value.green { color: var(--green); }
+        .stat-card .value.orange { color: var(--orange); }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+        .tab {
+            padding: 8px 20px; border-radius: 8px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            background: transparent; color: var(--text-muted);
+            border: none; transition: all 0.2s;
+        }
+        .tab:hover { color: var(--text); background: var(--surface); }
+        .tab.active { color: white; background: var(--accent); }
+
+        /* Panels */
+        .panel { display: none; }
+        .panel.visible { display: block; }
+
+        /* Patterns panel */
+        .patterns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .pattern-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 20px;
+        }
+        .pattern-card h3 { font-size: 15px; margin-bottom: 12px; }
+        .bar-chart .bar-row {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 6px; font-size: 13px;
+        }
+        .bar-chart .bar-label { width: 140px; text-align: right; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-chart .bar-track { flex: 1; height: 20px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+        .bar-chart .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.5s ease; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; color: white; min-width: fit-content; }
+        .bar-chart .bar-fill.green { background: var(--green); }
+        .bar-chart .bar-fill.blue { background: var(--blue); }
+        .bar-chart .bar-fill.orange { background: var(--orange); }
+
+        /* Meetings list */
+        .meeting-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 20px; margin-bottom: 12px;
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .meeting-card:hover { border-color: var(--accent); }
+        .meeting-card .meeting-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; }
+        .meeting-card h3 { font-size: 15px; flex: 1; }
+        .meeting-card .match-badge {
+            background: rgba(108, 99, 255, 0.2); color: var(--accent);
+            padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;
+        }
+        .meeting-card .meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+        .meeting-card .attendees { display: flex; flex-wrap: wrap; gap: 6px; }
+        .attendee-tag {
+            padding: 2px 8px; border-radius: 6px; font-size: 11px;
+        }
+        .attendee-tag.external { background: rgba(251, 146, 60, 0.15); color: var(--orange); }
+        .attendee-tag.internal { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
+
+        /* Snippets */
+        .snippet {
+            background: var(--surface2); border-left: 3px solid var(--accent);
+            padding: 10px 14px; margin-top: 10px; border-radius: 0 6px 6px 0;
+            font-size: 13px; line-height: 1.6;
+        }
+        .snippet .speaker { color: var(--accent); font-weight: 600; }
+
+        /* Transcript modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.7);
+            z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-overlay.visible { display: flex; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; width: 90%; max-width: 900px;
+            max-height: 85vh; display: flex; flex-direction: column;
+        }
+        .modal-header {
+            padding: 20px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h2 { font-size: 18px; }
+        .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 24px; }
+        .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+        .modal-body pre {
+            font-family: 'JetBrains Mono', monospace; font-size: 13px;
+            line-height: 1.8; white-space: pre-wrap; word-wrap: break-word;
+        }
+        .highlight { background: rgba(108, 99, 255, 0.3); padding: 1px 4px; border-radius: 3px; }
+
+        /* Snippets panel */
+        .snippet-list .snippet-item {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px; margin-bottom: 10px;
+        }
+        .snippet-item .quote { font-size: 14px; line-height: 1.6; font-style: italic; color: var(--text); }
+
+        /* Search */
+        .search-bar {
+            display: flex; gap: 8px; margin-bottom: 16px;
+        }
+        .search-bar input { flex: 1; }
+
+        /* Loading */
+        .loading {
+            display: none; text-align: center; padding: 60px;
+        }
+        .loading.visible { display: block; }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--border);
+            border-top: 3px solid var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading p { color: var(--text-muted); font-size: 14px; }
+
+        /* Content ideas panel */
+        .idea-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 20px; margin-bottom: 12px;
+        }
+        .idea-card h3 { font-size: 15px; margin-bottom: 6px; }
+        .idea-card .type-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600; margin-bottom: 8px;
+        }
+        .type-badge.blog { background: rgba(52, 211, 153, 0.15); color: var(--green); }
+        .type-badge.video { background: rgba(251, 146, 60, 0.15); color: var(--orange); }
+        .type-badge.docs { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
+        .type-badge.webinar { background: rgba(108, 99, 255, 0.15); color: var(--accent); }
+
+        .empty-state {
+            text-align: center; padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+
+        @media (max-width: 768px) {
+            .patterns-grid { grid-template-columns: 1fr; }
+            .mode-options { flex-direction: column; }
+            .controls { flex-direction: column; align-items: stretch; }
+            .controls .info { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Auth Panel -->
+    <div id="authPanel" class="auth-panel">
+        <h2>Momentum Call Parser</h2>
+        <p>Pull NeoCloud & GPU-related customer conversations and discover patterns for content creation.</p>
+
+        <div class="form-group">
+            <label>Momentum API Key</label>
+            <input type="password" id="apiKey" placeholder="Enter your Momentum API key">
+        </div>
+
+        <label>Fetch Mode</label>
+        <div class="mode-options">
+            <div class="mode-option active" data-mode="keywords" onclick="selectMode(this)">
+                <h3>Keyword Search</h3>
+                <p>All meetings with NeoCloud & GPU mentions</p>
+            </div>
+            <div class="mode-option" data-mode="last5days" onclick="selectMode(this)">
+                <h3>Last 5 Days</h3>
+                <p>All calls from the past 5 days</p>
+            </div>
+            <div class="mode-option" data-mode="lastweek" onclick="selectMode(this)">
+                <h3>Last Week</h3>
+                <p>All calls from the past 7 days</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Keywords (comma-separated, optional override)</label>
+            <input type="text" id="customKeywords" placeholder="neocloud, gpu, gpus, nvidia, cuda, graphics card, compute">
+        </div>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="startFetch()">Fetch Conversations</button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p id="loadingText">Fetching meetings from Momentum API...</p>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+            Using max 100 API requests (50 meetings/page) to stay within rate limits.
+        </p>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app">
+        <div class="container">
+            <div class="header">
+                <h1>Momentum <span>Parser</span></h1>
+                <span class="badge" id="modeBadge">KEYWORD SEARCH</span>
+                <button class="btn btn-secondary btn-sm" onclick="resetApp()" style="margin-left: auto;">New Search</button>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="label">Total Fetched</div>
+                    <div class="value" id="statTotal">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Matching Calls</div>
+                    <div class="value accent" id="statMatching">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">External Companies</div>
+                    <div class="value green" id="statCompanies">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">API Requests Used</div>
+                    <div class="value orange" id="statRequests">-</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('patterns')">Patterns</button>
+                <button class="tab" onclick="switchTab('gaps')">Content Gaps</button>
+                <button class="tab" onclick="switchTab('meetings')">Meetings</button>
+                <button class="tab" onclick="switchTab('snippets')">Key Snippets</button>
+                <button class="tab" onclick="switchTab('content')">Content Ideas</button>
+                <button class="tab" onclick="switchTab('export')">Export for Opus</button>
+            </div>
+
+            <!-- Patterns Panel -->
+            <div id="panel-patterns" class="panel visible">
+                <div class="patterns-grid">
+                    <div class="pattern-card">
+                        <h3>Keyword Frequency</h3>
+                        <div id="keywordChart" class="bar-chart"></div>
+                    </div>
+                    <div class="pattern-card">
+                        <h3>Top External Companies</h3>
+                        <div id="companyChart" class="bar-chart"></div>
+                    </div>
+                    <div class="pattern-card">
+                        <h3>Most Active Speakers</h3>
+                        <div id="speakerChart" class="bar-chart"></div>
+                    </div>
+                    <div class="pattern-card">
+                        <h3>Meetings Per Day</h3>
+                        <div id="timelineChart" class="bar-chart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Gaps Panel -->
+            <div id="panel-gaps" class="panel">
+                <div class="stats" style="margin-bottom: 20px;">
+                    <div class="stat-card">
+                        <div class="label">Confusion Signals</div>
+                        <div class="value" id="gapConfusion" style="color: var(--red);">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Content Requests</div>
+                        <div class="value accent" id="gapRequests">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Pain Points</div>
+                        <div class="value orange" id="gapPain">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Feature Requests</div>
+                        <div class="value green" id="gapFeature">0</div>
+                    </div>
+                </div>
+
+                <div class="gaps-tabs" style="display: flex; gap: 6px; margin-bottom: 16px;">
+                    <button class="btn btn-sm btn-primary" onclick="showGapCategory('confusion', this)">Confusion</button>
+                    <button class="btn btn-sm btn-secondary" onclick="showGapCategory('contentRequests', this)">Content Requests</button>
+                    <button class="btn btn-sm btn-secondary" onclick="showGapCategory('painPoints', this)">Pain Points</button>
+                    <button class="btn btn-sm btn-secondary" onclick="showGapCategory('featureRequests', this)">Feature Requests</button>
+                </div>
+
+                <div id="gapsList"></div>
+            </div>
+
+            <!-- Meetings Panel -->
+            <div id="panel-meetings" class="panel">
+                <div class="search-bar">
+                    <input type="text" id="meetingSearch" placeholder="Filter meetings..." oninput="filterMeetingsList()">
+                </div>
+                <div id="meetingsList"></div>
+            </div>
+
+            <!-- Snippets Panel -->
+            <div id="panel-snippets" class="panel">
+                <div id="snippetsList" class="snippet-list"></div>
+            </div>
+
+            <!-- Content Ideas Panel -->
+            <div id="panel-content" class="panel">
+                <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 14px;">
+                    Content suggestions based on conversation patterns. Click to expand.
+                </p>
+                <div id="contentIdeas"></div>
+            </div>
+
+            <!-- Export Panel -->
+            <div id="panel-export" class="panel">
+                <div class="pattern-card">
+                    <h3>Export for Claude Opus Analysis</h3>
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+                        Export all matching conversations as a single document optimized for Claude's 1M context window.
+                        This consolidates transcripts, metadata, and patterns into one file you can paste into Claude.
+                    </p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="exportForOpus()">Generate Export</button>
+                        <button class="btn btn-secondary" onclick="copyExport()">Copy to Clipboard</button>
+                        <button class="btn btn-secondary" onclick="downloadExport()">Download .txt</button>
+                    </div>
+                    <pre id="exportPreview" style="margin-top: 16px; max-height: 400px; overflow-y: auto; background: var(--surface2); padding: 16px; border-radius: 8px; font-size: 12px; display: none;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transcript Modal -->
+    <div id="transcriptModal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">Transcript</h2>
+                <button class="modal-close" onclick="document.getElementById('transcriptModal').classList.remove('visible')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="modalBody"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let appData = null;
+        let currentMode = 'keywords';
+
+        function selectMode(el) {
+            document.querySelectorAll('.mode-option').forEach(o => o.classList.remove('active'));
+            el.classList.add('active');
+            currentMode = el.dataset.mode;
+        }
+
+        async function startFetch() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) { alert('Please enter your API key.'); return; }
+
+            const customKw = document.getElementById('customKeywords').value.trim();
+
+            document.getElementById('authPanel').style.display = 'none';
+            document.getElementById('loading').classList.add('visible');
+
+            try {
+                const resp = await fetch('/api/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey,
+                        mode: currentMode,
+                        keywords: customKw,
+                    }),
+                });
+
+                const data = await resp.json();
+                if (!resp.ok) {
+                    alert(data.error || 'Failed to fetch meetings');
+                    document.getElementById('loading').classList.remove('visible');
+                    document.getElementById('authPanel').style.display = 'block';
+                    return;
+                }
+
+                appData = data;
+                renderApp();
+            } catch (err) {
+                alert('Network error: ' + err.message);
+                document.getElementById('loading').classList.remove('visible');
+                document.getElementById('authPanel').style.display = 'block';
+            }
+        }
+
+        function renderApp() {
+            document.getElementById('loading').classList.remove('visible');
+            document.getElementById('app').classList.add('visible');
+
+            // Stats
+            document.getElementById('statTotal').textContent = appData.totalFetched;
+            document.getElementById('statMatching').textContent = appData.totalMatching;
+            const companies = Object.keys(appData.patterns.externalCompanies || {}).length;
+            document.getElementById('statCompanies').textContent = companies;
+            const reqMatch = appData.status.match(/(\d+)\/100/);
+            document.getElementById('statRequests').textContent = reqMatch ? reqMatch[1] + '/100' : '-';
+            const modeLabels = { last5days: 'LAST 5 DAYS', lastweek: 'LAST WEEK', keywords: 'KEYWORD SEARCH' };
+            document.getElementById('modeBadge').textContent = modeLabels[currentMode] || 'KEYWORD SEARCH';
+
+            renderPatterns();
+            renderContentGaps();
+            renderMeetings();
+            renderSnippets();
+            generateContentIdeas();
+        }
+
+        function renderBarChart(containerId, data, colorClass) {
+            const container = document.getElementById(containerId);
+            if (!data || Object.keys(data).length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No data available</p>';
+                return;
+            }
+            const max = Math.max(...Object.values(data));
+            container.innerHTML = Object.entries(data).map(([label, value]) => {
+                const pct = Math.max((value / max) * 100, 8);
+                return `
+                    <div class="bar-row">
+                        <span class="bar-label" title="${label}">${label}</span>
+                        <div class="bar-track">
+                            <div class="bar-fill ${colorClass}" style="width: ${pct}%">${value}</div>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function renderPatterns() {
+            const p = appData.patterns;
+            renderBarChart('keywordChart', p.keywordFrequency, '');
+            renderBarChart('companyChart', p.externalCompanies, 'green');
+            renderBarChart('speakerChart', p.topSpeakers, 'blue');
+            renderBarChart('timelineChart', p.meetingsPerDay, 'orange');
+        }
+
+        function renderMeetings() {
+            const container = document.getElementById('meetingsList');
+            if (!appData.meetings.length) {
+                container.innerHTML = '<div class="empty-state"><h3>No matching meetings found</h3><p>Try broadening your keywords or date range.</p></div>';
+                return;
+            }
+
+            container.innerHTML = appData.meetings.map((m, idx) => {
+                const date = m.startTime ? new Date(m.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unknown date';
+                const externals = (m.externalAttendees || []).map(a => `<span class="attendee-tag external">${a.name || a.email}</span>`).join('');
+                const internals = (m.internalAttendees || []).map(a => `<span class="attendee-tag internal">${a.name || a.email}</span>`).join('');
+                const topSnippet = m.transcriptMatches && m.transcriptMatches[0]
+                    ? `<div class="snippet">${highlightKeywords(m.transcriptMatches[0].context)}</div>` : '';
+
+                return `
+                    <div class="meeting-card" onclick="showTranscript(${idx})" data-search="${(m.title + ' ' + JSON.stringify(m.externalAttendees)).toLowerCase()}">
+                        <div class="meeting-header">
+                            <h3>${escHtml(m.title || 'Untitled Meeting')}</h3>
+                            <span class="match-badge">${m.matchCount} match${m.matchCount !== 1 ? 'es' : ''}</span>
+                        </div>
+                        <div class="meta">
+                            <span>${date}</span>
+                            <span>Host: ${escHtml((m.host && m.host.name) || 'Unknown')}</span>
+                        </div>
+                        <div class="attendees">${externals}${internals}</div>
+                        ${topSnippet}
+                    </div>`;
+            }).join('');
+        }
+
+        function filterMeetingsList() {
+            const q = document.getElementById('meetingSearch').value.toLowerCase();
+            document.querySelectorAll('#meetingsList .meeting-card').forEach(card => {
+                card.style.display = card.dataset.search.includes(q) ? '' : 'none';
+            });
+        }
+
+        function renderSnippets() {
+            const container = document.getElementById('snippetsList');
+            const snippets = appData.patterns.sampleSnippets || [];
+            if (!snippets.length) {
+                container.innerHTML = '<div class="empty-state"><h3>No snippets found</h3></div>';
+                return;
+            }
+            container.innerHTML = snippets.map(s => `
+                <div class="snippet-item">
+                    <div class="quote">${highlightKeywords(escHtml(s))}</div>
+                </div>
+            `).join('');
+        }
+
+        function generateContentIdeas() {
+            const container = document.getElementById('contentIdeas');
+            const p = appData.patterns;
+            const ideas = [];
+
+            const kwKeys = Object.keys(p.keywordFrequency || {});
+            const companyCount = Object.keys(p.externalCompanies || {}).length;
+            const topCompanies = Object.keys(p.externalCompanies || {}).slice(0, 3);
+
+            if (kwKeys.includes('neocloud')) {
+                ideas.push({ type: 'blog', typeName: 'Blog Post', title: 'NeoCloud Customer Insights Deep Dive', desc: `Based on ${p.keywordFrequency['neocloud'] || 0} mentions across conversations. Cover common questions, pain points, and use cases.` });
+                ideas.push({ type: 'webinar', typeName: 'Webinar', title: 'NeoCloud Best Practices from Real Conversations', desc: 'Use top speaker insights and recurring themes to build a webinar around actual customer needs.' });
+            }
+            if (kwKeys.includes('gpu') || kwKeys.includes('gpus') || kwKeys.includes('nvidia')) {
+                ideas.push({ type: 'docs', typeName: 'Documentation', title: 'GPU Configuration & Troubleshooting Guide', desc: 'Customers frequently ask about GPU-related topics. Create a comprehensive guide addressing the most common questions.' });
+                ideas.push({ type: 'video', typeName: 'Video', title: 'GPU Setup Walkthrough', desc: 'Based on recurring GPU questions in calls, create a step-by-step video tutorial.' });
+            }
+            if (companyCount > 0) {
+                ideas.push({ type: 'blog', typeName: 'Case Study', title: `Customer Spotlight: ${topCompanies.join(', ')}`, desc: `${companyCount} external companies appeared in matching calls. Profile top engaged companies.` });
+            }
+            if (appData.totalMatching > 5) {
+                ideas.push({ type: 'webinar', typeName: 'Internal Training', title: 'Common Customer Questions & Best Responses', desc: `Analyze ${appData.totalMatching} matching calls to train the team on handling NeoCloud/GPU conversations.` });
+            }
+
+            // Content gap driven ideas
+            const gaps = p.contentGaps || {};
+            const gapSummary = gaps.summary || {};
+            if (gapSummary.confusionCount > 0) {
+                ideas.push({ type: 'docs', typeName: 'Documentation', title: `Clarity Guide: ${gapSummary.confusionCount} Confusion Points Detected`, desc: 'Customers expressed confusion in calls. Create targeted docs addressing these exact areas of misunderstanding.' });
+            }
+            if (gapSummary.contentRequestCount > 0) {
+                ideas.push({ type: 'blog', typeName: 'Resource Hub', title: `${gapSummary.contentRequestCount} Direct Content Requests from Customers`, desc: 'Customers explicitly asked for documentation, guides, or tutorials. These are high-priority content gaps to fill.' });
+            }
+            if (gapSummary.painPointCount > 0) {
+                ideas.push({ type: 'video', typeName: 'Tutorial Video', title: `Address ${gapSummary.painPointCount} Customer Pain Points`, desc: 'Recurring pain points and frustrations surfaced in calls. Create how-to content that eliminates these friction areas.' });
+            }
+            if (gapSummary.featureRequestCount > 0) {
+                ideas.push({ type: 'webinar', typeName: 'Roadmap Webinar', title: `${gapSummary.featureRequestCount} Feature Requests Surfaced`, desc: 'Customers are asking for new capabilities. Consider a roadmap webinar or "what\'s coming" blog post.' });
+            }
+
+            // Always offer a generic one
+            ideas.push({ type: 'docs', typeName: 'FAQ', title: 'NeoCloud & GPU FAQ from Customer Conversations', desc: 'Compile the most frequently asked questions and answers directly from call transcripts.' });
+
+            container.innerHTML = ideas.map(idea => `
+                <div class="idea-card">
+                    <span class="type-badge ${idea.type}">${idea.typeName}</span>
+                    <h3>${escHtml(idea.title)}</h3>
+                    <p style="color: var(--text-muted); font-size: 13px;">${escHtml(idea.desc)}</p>
+                </div>
+            `).join('');
+        }
+
+        let currentGapCategory = 'confusion';
+
+        function renderContentGaps() {
+            const gaps = appData.patterns.contentGaps;
+            if (!gaps) return;
+
+            document.getElementById('gapConfusion').textContent = gaps.summary.confusionCount;
+            document.getElementById('gapRequests').textContent = gaps.summary.contentRequestCount;
+            document.getElementById('gapPain').textContent = gaps.summary.painPointCount;
+            document.getElementById('gapFeature').textContent = gaps.summary.featureRequestCount;
+
+            showGapCategory('confusion');
+        }
+
+        function showGapCategory(category, btn) {
+            currentGapCategory = category;
+            // Update active button
+            if (btn) {
+                btn.closest('.gaps-tabs').querySelectorAll('.btn').forEach(b => {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-secondary');
+                });
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-primary');
+            }
+
+            const gaps = appData.patterns.contentGaps;
+            const items = gaps[category] || [];
+            const container = document.getElementById('gapsList');
+
+            if (!items.length) {
+                container.innerHTML = '<div class="empty-state"><h3>No signals detected</h3><p>No matching patterns found in transcripts for this category.</p></div>';
+                return;
+            }
+
+            const colorMap = { confusion: 'var(--red)', contentRequests: 'var(--accent)', painPoints: 'var(--orange)', featureRequests: 'var(--green)' };
+            const color = colorMap[category] || 'var(--accent)';
+
+            container.innerHTML = items.map(item => {
+                const date = item.meetingDate ? new Date(item.meetingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                return `
+                    <div class="snippet-item">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="font-size: 12px; font-weight: 600; color: ${color};">"${escHtml(item.matchedPhrase)}"</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">${escHtml(item.meeting)} &middot; ${date}</span>
+                        </div>
+                        <div class="snippet" style="border-left-color: ${color};">
+                            ${highlightKeywords(escHtml(item.context))}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function showTranscript(idx) {
+            const m = appData.meetings[idx];
+            document.getElementById('modalTitle').textContent = m.title || 'Untitled Meeting';
+            const transcript = m.fullTranscript || 'No transcript available.';
+            document.getElementById('modalBody').innerHTML = highlightKeywords(escHtml(transcript));
+            document.getElementById('transcriptModal').classList.add('visible');
+        }
+
+        function closeModal(e) {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.classList.remove('visible');
+            }
+        }
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('visible'));
+            event.target.classList.add('active');
+            document.getElementById('panel-' + name).classList.add('visible');
+        }
+
+        function highlightKeywords(text) {
+            const keywords = ['neocloud', 'gpu', 'gpus', 'nvidia', 'cuda', 'graphics card', 'compute'];
+            let result = text;
+            keywords.forEach(kw => {
+                const regex = new RegExp(`(${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                result = result.replace(regex, '<span class="highlight">$1</span>');
+            });
+            return result;
+        }
+
+        function escHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        let exportText = '';
+
+        function exportForOpus() {
+            const lines = [];
+            lines.push('=== MOMENTUM CALL ANALYSIS: NEOCLOUD & GPU CONVERSATIONS ===');
+            lines.push(`Generated: ${new Date().toISOString()}`);
+            lines.push(`Total meetings fetched: ${appData.totalFetched}`);
+            lines.push(`Matching meetings: ${appData.totalMatching}`);
+            lines.push('');
+
+            lines.push('=== PATTERN SUMMARY ===');
+            lines.push('Keyword frequency: ' + JSON.stringify(appData.patterns.keywordFrequency, null, 2));
+            lines.push('External companies: ' + JSON.stringify(appData.patterns.externalCompanies, null, 2));
+            lines.push('Top speakers: ' + JSON.stringify(appData.patterns.topSpeakers, null, 2));
+            lines.push('');
+
+            lines.push('=== MATCHING MEETINGS WITH FULL TRANSCRIPTS ===');
+            lines.push('');
+
+            appData.meetings.forEach((m, i) => {
+                lines.push(`--- Meeting ${i + 1}/${appData.meetings.length} ---`);
+                lines.push(`Title: ${m.title}`);
+                lines.push(`Date: ${m.startTime}`);
+                lines.push(`Host: ${m.host?.name || 'Unknown'} (${m.host?.email || ''})`);
+                lines.push(`External Attendees: ${(m.externalAttendees || []).map(a => `${a.name} <${a.email}>`).join(', ') || 'None'}`);
+                lines.push(`Internal Attendees: ${(m.internalAttendees || []).map(a => `${a.name} <${a.email}>`).join(', ') || 'None'}`);
+                lines.push(`Keyword Matches: ${m.matchCount}`);
+                lines.push('');
+                lines.push('TRANSCRIPT:');
+                lines.push(m.fullTranscript || '(No transcript)');
+                lines.push('');
+                lines.push('');
+            });
+
+            lines.push('=== END OF EXPORT ===');
+            lines.push('');
+            lines.push('ANALYSIS PROMPT: Please analyze the above customer conversations for patterns related to NeoCloud and GPU topics. Identify:');
+            lines.push('1. Most common customer pain points and questions');
+            lines.push('2. Feature requests or product gaps mentioned');
+            lines.push('3. Competitive mentions or comparisons');
+            lines.push('4. Customer sentiment trends');
+            lines.push('5. Content opportunities (blog posts, docs, videos, webinars)');
+            lines.push('6. Sales enablement insights');
+
+            exportText = lines.join('\n');
+            const preview = document.getElementById('exportPreview');
+            preview.style.display = 'block';
+            preview.textContent = exportText.substring(0, 5000) + (exportText.length > 5000 ? '\n\n... [truncated preview — full export available via copy/download]' : '');
+        }
+
+        function copyExport() {
+            if (!exportText) { exportForOpus(); }
+            navigator.clipboard.writeText(exportText).then(() => alert('Copied to clipboard!')).catch(() => alert('Failed to copy.'));
+        }
+
+        function downloadExport() {
+            if (!exportText) { exportForOpus(); }
+            const blob = new Blob([exportText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `momentum-neocloud-gpu-export-${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function resetApp() {
+            document.getElementById('app').classList.remove('visible');
+            document.getElementById('authPanel').style.display = 'block';
+            appData = null;
+            exportText = '';
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                document.getElementById('transcriptModal').classList.remove('visible');
+            }
+        });
+    </script>
+</body>
+</html>
