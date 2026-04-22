@@ -52,13 +52,14 @@
 
         /* Forms */
         label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted); }
-        input[type="text"], input[type="password"] {
+        input[type="text"], input[type="password"], select {
             width: 100%; padding: 10px 14px; background: var(--surface2);
             border: 1px solid var(--border); border-radius: 8px;
             color: var(--text); font-size: 14px; outline: none;
             transition: border-color 0.2s;
         }
-        input:focus { border-color: var(--accent); }
+        select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+        input:focus, select:focus { border-color: var(--accent); }
         .form-group { margin-bottom: 16px; }
 
         .btn {
@@ -498,7 +499,9 @@
                     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
                         <div style="flex: 1; min-width: 200px;">
                             <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Person Name</label>
-                            <input type="text" id="personName" placeholder="Enter person's name" style="width:100%">
+                            <select id="personName" style="width:100%">
+                                <option value="" disabled selected>Select a speaker...</option>
+                            </select>
                         </div>
                         <div style="width: 100px;">
                             <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Days back</label>
@@ -624,6 +627,7 @@
             renderSnippets();
             generateContentIdeas();
             renderThemes();
+            populatePersonSelect();
         }
 
         const SIGNAL_LABEL = {
@@ -989,6 +993,25 @@
             a.download = `momentum-neocloud-gpu-export-${new Date().toISOString().slice(0,10)}.txt`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        function populatePersonSelect() {
+            const select = document.getElementById('personName');
+            const speakers = appData.patterns.topSpeakers || {};
+            select.replaceChildren();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.disabled = true;
+            placeholder.selected = true;
+            placeholder.textContent = 'Select a speaker...';
+            select.appendChild(placeholder);
+            Object.keys(speakers).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                const count = speakers[name];
+                opt.textContent = `${name} (${count} mention${count !== 1 ? 's' : ''})`;
+                select.appendChild(opt);
+            });
         }
 
         async function downloadPersonReport() {
