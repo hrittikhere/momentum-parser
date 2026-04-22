@@ -526,7 +526,7 @@ def person_report():
     body = request.json or {}
     api_key = body.get("apiKey", "").strip()
     person_name = body.get("personName", "").strip()
-    days = min(int(body.get("days", 7)), 90)
+    days = int(body.get("days", 7))
 
     if not api_key:
         return jsonify({"error": "API key is required"}), 400

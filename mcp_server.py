@@ -54,9 +54,9 @@ def get_person_calls(momentum_api_key: str, person_name: str, days: int = 7) -> 
     Args:
         momentum_api_key: Momentum API key.
         person_name: Full or partial name to match (e.g. "Lukas Gentele").
-        days: How many days back to search (default 7, max 90).
+        days: How many days back to search (default 7).
     """
-    days = min(days, 90)
+    days = int(days)
     now = datetime.now(timezone.utc)
     to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     from_date = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -103,9 +103,9 @@ def get_weekly_calls(momentum_api_key: str, days: int = 7) -> str:
 
     Args:
         momentum_api_key: Momentum API key.
-        days: How many days back to fetch (default 7, max 90).
+        days: How many days back to fetch (default 7).
     """
-    days = min(days, 90)
+    days = int(days)
     now = datetime.now(timezone.utc)
     to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     from_date = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -140,9 +140,9 @@ def analyze_keyword_calls(
     Args:
         momentum_api_key: Momentum API key.
         keywords: Comma-separated keywords (defaults to GPU/AI cloud topics).
-        days: How many days back to search (default 30, max 90).
+        days: How many days back to search (default 30).
     """
-    days = min(days, 90)
+    days = int(days)
     kw_list = [k.strip() for k in keywords.split(",") if k.strip()] or KEYWORDS
 
     now = datetime.now(timezone.utc)
