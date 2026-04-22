@@ -4,6 +4,8 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
+from google import genai
+from google.genai import errors as genai_errors
 import requests
 from flask import Flask, jsonify, render_template, request
 
@@ -305,6 +307,167 @@ def detect_content_gaps(filtered_meetings):
     }
 
 
+def cluster_signals_with_claude(content_gaps, claude_api_key):
+    """Send all detected signals to Claude to cluster into recurring themes with root-cause reasoning."""
+    signals = []
+    category_map = {
+        "confusion": content_gaps.get("confusion", []),
+        "pain_point": content_gaps.get("painPoints", []),
+        "content_request": content_gaps.get("contentRequests", []),
+        "feature_request": content_gaps.get("featureRequests", []),
+    }
+    for category, items in category_map.items():
+        for item in items:
+            signals.append({
+                "category": category,
+                "quote": item.get("line", ""),
+                "context": item.get("context", ""),
+                "meeting": item.get("meeting", ""),
+                "date": item.get("meetingDate", "")[:10] if item.get("meetingDate") else "",
+            })
+
+    if not signals:
+        return []
+
+    prompt = f"""You are analyzing customer call signals to find recurring underlying problems.
+
+Below are {len(signals)} signals detected across customer sales and support calls. Each has a category, the exact quote, surrounding context, meeting name, and date.
+
+Group them into 5–10 distinct themes. Each theme should represent a single underlying problem — not a symptom. Prioritize themes that appear across the most distinct calls.
+
+For each theme return:
+- "theme": concise name of the underlying problem (not the symptom)
+- "root_cause": 2–4 sentences explaining WHY customers keep hitting this — what mental model is wrong, what expectation is unmet, what knowledge gap exists. Be specific and analytical.
+- "signal_types": array of signal categories present (confusion, pain_point, content_request, feature_request)
+- "call_count": number of distinct calls this theme appears in
+- "signal_count": total individual signal hits across all calls
+- "quotes": up to 3 representative verbatim quotes, each with "text", "meeting", and "date"
+
+Rank themes by call_count descending.
+
+Return ONLY valid JSON in this format:
+{{"themes": [...]}}
+
+SIGNALS:
+{json.dumps(signals, indent=2)}"""
+
+    try:
+        client = genai.Client(api_key=claude_api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents=prompt,
+        )
+        raw = response.text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+        data = json.loads(raw)
+        return data.get("themes", [])
+    except genai_errors.ClientError as e:
+        if "API_KEY_INVALID" in str(e) or "401" in str(e):
+            return {"error": "Invalid Gemini API key."}
+        return {"error": f"Clustering failed: {str(e)}"}
+    except json.JSONDecodeError as e:
+        return {"error": f"Clustering failed: {str(e)}"}
+
+
+def format_meetings_as_markdown(meetings, from_date, to_date, generated_at):
+    week_start = from_date[:10]
+    week_end = to_date[:10]
+    lines = [
+        f"# Weekly Call Report — {week_start} to {week_end}",
+        f"_Generated: {generated_at}_  ",
+        f"_Total calls: {len(meetings)}_",
+        "",
+        "---",
+        "",
+    ]
+
+    for i, m in enumerate(meetings):
+        title = m.get("title") or "Untitled Meeting"
+        start = m.get("startTime", "")
+        end = m.get("endTime", "")
+        host = m.get("host") or {}
+        attendees = m.get("attendees") or []
+        external = [a for a in attendees if not a.get("isInternal", True)]
+        internal = [a for a in attendees if a.get("isInternal", False)]
+
+        lines.append(f"## {i + 1}. {title}")
+        lines.append(f"**Date:** {start[:10] if start else 'Unknown'}  ")
+        if start:
+            lines.append(f"**Start:** {start}  ")
+        if end:
+            lines.append(f"**End:** {end}  ")
+
+        host_str = host.get("name", "Unknown")
+        if host.get("email"):
+            host_str += f" ({host['email']})"
+        lines.append(f"**Host:** {host_str}  ")
+
+        if external:
+            ext_str = ", ".join(
+                f"{a.get('name', '')} <{a.get('email', '')}>" for a in external if a.get("name") or a.get("email")
+            )
+            if ext_str:
+                lines.append(f"**External:** {ext_str}  ")
+
+        if internal:
+            int_str = ", ".join(
+                f"{a.get('name', '')} <{a.get('email', '')}>" for a in internal if a.get("name") or a.get("email")
+            )
+            if int_str:
+                lines.append(f"**Internal:** {int_str}  ")
+
+        lines.append("")
+
+        transcript = m.get("transcript")
+        if transcript and transcript.get("entries"):
+            lines.append("### Transcript")
+            lines.append("")
+            for entry in transcript["entries"]:
+                speaker = entry.get("speaker", {}).get("name", "Unknown")
+                text = entry.get("text", "")
+                ts = entry.get("timestamp", "")
+                prefix = f"**[{speaker}]**" + (f" _{ts}_" if ts else "")
+                lines.append(f"{prefix}: {text}")
+        else:
+            lines.append("_No transcript available._")
+
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+@app.route("/api/weekly-report", methods=["POST"])
+def weekly_report():
+    body = request.json or {}
+    api_key = body.get("apiKey", "").strip()
+
+    if not api_key:
+        return jsonify({"error": "API key is required"}), 400
+
+    now = datetime.now(timezone.utc)
+    to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    from_date = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    meetings, status_msg = fetch_all_meetings(api_key, from_date, to_date)
+    if meetings is None:
+        return jsonify({"error": status_msg}), 400
+
+    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    markdown = format_meetings_as_markdown(meetings, from_date, to_date, generated_at)
+
+    return jsonify({
+        "markdown": markdown,
+        "count": len(meetings),
+        "status": status_msg,
+        "filename": f"weekly-calls-{from_date[:10]}-to-{to_date[:10]}.md",
+    })
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -314,6 +477,7 @@ def index():
 def fetch_meetings():
     body = request.json or {}
     api_key = body.get("apiKey", "").strip()
+    claude_api_key = body.get("claudeApiKey", "").strip()
     mode = body.get("mode", "keywords")  # "keywords" or "last5days"
     custom_keywords = body.get("keywords", "")
 
@@ -324,15 +488,14 @@ def fetch_meetings():
     if custom_keywords:
         keywords = [k.strip() for k in custom_keywords.split(",") if k.strip()]
 
-    from_date = None
-    to_date = None
     now = datetime.now(timezone.utc)
+    to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     if mode == "last5days":
         from_date = (now - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     elif mode == "lastweek":
         from_date = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    else:
+        from_date = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     meetings, status_msg = fetch_all_meetings(api_key, from_date, to_date)
     if meetings is None:
@@ -341,13 +504,24 @@ def fetch_meetings():
     filtered = filter_meetings_by_keywords(meetings, keywords)
     patterns = analyze_patterns(filtered)
 
-    return jsonify({
+    response = {
         "status": status_msg,
         "totalFetched": len(meetings),
         "totalMatching": len(filtered),
         "meetings": filtered,
         "patterns": patterns,
-    })
+        "themes": None,
+        "themesError": None,
+    }
+
+    if claude_api_key:
+        themes = cluster_signals_with_claude(patterns.get("contentGaps", {}), claude_api_key)
+        if isinstance(themes, dict) and "error" in themes:
+            response["themesError"] = themes["error"]
+        else:
+            response["themes"] = themes
+
+    return jsonify(response)
 
 
 if __name__ == "__main__":

@@ -243,6 +243,59 @@
         .type-badge.docs { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
         .type-badge.webinar { background: rgba(108, 99, 255, 0.15); color: var(--accent); }
 
+        /* Themes master-detail */
+        .themes-layout {
+            display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start;
+        }
+        .themes-list { display: flex; flex-direction: column; gap: 8px; }
+        .theme-row {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color 0.2s;
+        }
+        .theme-row:hover { border-color: var(--accent); }
+        .theme-row.active { border-color: var(--accent); background: rgba(108,99,255,0.07); }
+        .theme-row h4 { font-size: 13px; font-weight: 600; margin-bottom: 5px; line-height: 1.4; }
+        .theme-row .theme-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+        .theme-signal-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+        .signal-tag {
+            font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 8px;
+        }
+        .signal-tag.confusion { background: rgba(248,113,113,0.15); color: var(--red); }
+        .signal-tag.pain_point { background: rgba(251,146,60,0.15); color: var(--orange); }
+        .signal-tag.content_request { background: rgba(108,99,255,0.15); color: var(--accent); }
+        .signal-tag.feature_request { background: rgba(52,211,153,0.15); color: var(--green); }
+
+        .themes-detail {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 24px; position: sticky; top: 20px;
+        }
+        .themes-detail h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
+        .theme-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .theme-badge {
+            font-size: 12px; font-weight: 600; padding: 3px 12px; border-radius: 12px;
+        }
+        .theme-badge.calls { background: rgba(248,113,113,0.15); color: var(--red); }
+        .theme-badge.signals { background: rgba(96,165,250,0.15); color: var(--blue); }
+        .root-cause-box {
+            background: var(--surface2); border-radius: 8px; padding: 14px 16px;
+            font-size: 13px; line-height: 1.7; color: var(--text); margin-bottom: 18px;
+        }
+        .evidence-label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 10px;
+        }
+        .evidence-quote {
+            border-left: 3px solid var(--accent); padding: 8px 12px;
+            background: var(--surface2); border-radius: 0 6px 6px 0;
+            margin-bottom: 8px; font-size: 12px; line-height: 1.6;
+        }
+        .evidence-quote .quote-meta {
+            font-size: 10px; color: var(--text-muted); margin-top: 4px;
+        }
+        @media (max-width: 768px) {
+            .themes-layout { grid-template-columns: 1fr; }
+        }
+
         .empty-state {
             text-align: center; padding: 60px 20px;
             color: var(--text-muted);
@@ -266,6 +319,11 @@
         <div class="form-group">
             <label>Momentum API Key</label>
             <input type="password" id="apiKey" placeholder="Enter your Momentum API key">
+        </div>
+
+        <div class="form-group">
+            <label>Gemini API Key <span style="color: var(--text-muted); font-weight: 400;">(optional — enables Themes analysis)</span></label>
+            <input type="password" id="claudeApiKey" placeholder="AIza...">
         </div>
 
         <label>Fetch Mode</label>
@@ -335,11 +393,25 @@
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('patterns')">Patterns</button>
+                <button id="tab-themes" class="tab" onclick="switchTab('themes')" style="display:none">Themes <span id="themesCount" style="background:rgba(108,99,255,0.3);padding:1px 7px;border-radius:10px;font-size:11px;margin-left:4px"></span></button>
                 <button class="tab" onclick="switchTab('gaps')">Content Gaps</button>
                 <button class="tab" onclick="switchTab('meetings')">Meetings</button>
                 <button class="tab" onclick="switchTab('snippets')">Key Snippets</button>
                 <button class="tab" onclick="switchTab('content')">Content Ideas</button>
                 <button class="tab" onclick="switchTab('export')">Export for Opus</button>
+            </div>
+
+            <!-- Themes Panel -->
+            <div id="panel-themes" class="panel">
+                <div id="themesError" style="display:none" class="pattern-card" style="border-color:var(--red)">
+                    <p style="color:var(--red);font-size:13px"></p>
+                </div>
+                <div id="themesLayout" class="themes-layout">
+                    <div id="themesList" class="themes-list"></div>
+                    <div id="themesDetail" class="themes-detail">
+                        <div class="empty-state"><h3>Select a theme</h3></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Patterns Panel -->
@@ -418,6 +490,16 @@
 
             <!-- Export Panel -->
             <div id="panel-export" class="panel">
+                <div class="pattern-card" style="margin-bottom: 16px;">
+                    <h3>Weekly Markdown Report</h3>
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+                        Download <strong>all calls from the past 7 days</strong> as a structured Markdown file — every call with title, attendees, and full transcript. No keyword filtering.
+                    </p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="downloadWeeklyMarkdown()" id="weeklyBtn">Download Weekly Report (.md)</button>
+                        <span id="weeklyStatus" style="font-size: 13px; color: var(--text-muted); display: none; align-self: center;"></span>
+                    </div>
+                </div>
                 <div class="pattern-card">
                     <h3>Export for Claude Opus Analysis</h3>
                     <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
@@ -451,6 +533,7 @@
     <script>
         let appData = null;
         let currentMode = 'keywords';
+        let storedApiKey = '';
 
         function selectMode(el) {
             document.querySelectorAll('.mode-option').forEach(o => o.classList.remove('active'));
@@ -462,10 +545,15 @@
             const apiKey = document.getElementById('apiKey').value.trim();
             if (!apiKey) { alert('Please enter your API key.'); return; }
 
+            storedApiKey = apiKey;
             const customKw = document.getElementById('customKeywords').value.trim();
+            const claudeApiKey = document.getElementById('claudeApiKey').value.trim();
 
             document.getElementById('authPanel').style.display = 'none';
             document.getElementById('loading').classList.add('visible');
+            if (claudeApiKey) {
+                document.getElementById('loadingText').textContent = 'Fetching meetings and analyzing themes with Claude...';
+            }
 
             try {
                 const resp = await fetch('/api/fetch', {
@@ -473,6 +561,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         apiKey,
+                        claudeApiKey,
                         mode: currentMode,
                         keywords: customKw,
                     }),
@@ -514,6 +603,86 @@
             renderMeetings();
             renderSnippets();
             generateContentIdeas();
+            renderThemes();
+        }
+
+        const SIGNAL_LABEL = {
+            confusion: 'confusion',
+            pain_point: 'pain',
+            content_request: 'content req',
+            feature_request: 'feature req',
+        };
+
+        function renderThemes() {
+            const themes = appData.themes;
+            const tab = document.getElementById('tab-themes');
+            const errorBox = document.getElementById('themesError');
+
+            if (appData.themesError) {
+                tab.style.display = '';
+                errorBox.style.display = 'block';
+                errorBox.querySelector('p').textContent = 'Theme analysis error: ' + appData.themesError;
+                return;
+            }
+            if (!themes || !themes.length) return;
+
+            tab.style.display = '';
+            document.getElementById('themesCount').textContent = themes.length;
+
+            const list = document.getElementById('themesList');
+            // escHtml used on all user-supplied string values
+            list.innerHTML = themes.map((t, i) => {
+                const tags = (t.signal_types || []).map(s =>
+                    `<span class="signal-tag ${escHtml(s)}">${escHtml(SIGNAL_LABEL[s] || s)}</span>`
+                ).join('');
+                return `
+                    <div class="theme-row${i === 0 ? ' active' : ''}" onclick="selectTheme(${i})" id="theme-row-${i}">
+                        <h4>${escHtml(t.theme || '')}</h4>
+                        <div class="theme-meta">${escHtml(String(t.call_count || 0))} calls &middot; ${escHtml(String(t.signal_count || 0))} signals</div>
+                        <div class="theme-signal-tags">${tags}</div>
+                    </div>`;
+            }).join('');
+
+            selectTheme(0);
+        }
+
+        function selectTheme(idx) {
+            document.querySelectorAll('.theme-row').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
+            });
+
+            const t = appData.themes[idx];
+            const colorMap = {
+                confusion: 'var(--red)',
+                pain_point: 'var(--orange)',
+                content_request: 'var(--accent)',
+                feature_request: 'var(--green)',
+            };
+            const primaryType = (t.signal_types || [])[0] || 'confusion';
+            const accentColor = colorMap[primaryType] || 'var(--accent)';
+
+            // escHtml used on all user-supplied string values below
+            const quotes = (t.quotes || []).map(q => `
+                <div class="evidence-quote" style="border-left-color:${accentColor}">
+                    <div>${escHtml(q.text || '')}</div>
+                    <div class="quote-meta">${escHtml(q.meeting || '')}${q.date ? ' &middot; ' + escHtml(q.date) : ''}</div>
+                </div>`).join('');
+
+            const tags = (t.signal_types || []).map(s =>
+                `<span class="signal-tag ${escHtml(s)}" style="font-size:12px;padding:3px 10px">${escHtml(SIGNAL_LABEL[s] || s)}</span>`
+            ).join('');
+
+            document.getElementById('themesDetail').innerHTML = `
+                <h3>${escHtml(t.theme || '')}</h3>
+                <div class="theme-badges">
+                    <span class="theme-badge calls">${escHtml(String(t.call_count || 0))} calls</span>
+                    <span class="theme-badge signals">${escHtml(String(t.signal_count || 0))} signals</span>
+                    ${tags}
+                </div>
+                <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:8px">Root Cause</div>
+                <div class="root-cause-box">${escHtml(t.root_cause || '')}</div>
+                ${quotes ? '<div class="evidence-label">Evidence from calls</div>' + quotes : ''}
+            `;
         }
 
         function renderBarChart(containerId, data, colorClass) {
@@ -800,6 +969,46 @@
             a.download = `momentum-neocloud-gpu-export-${new Date().toISOString().slice(0,10)}.txt`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        async function downloadWeeklyMarkdown() {
+            const apiKey = storedApiKey || document.getElementById('apiKey').value.trim();
+            if (!apiKey) { alert('Please enter your Momentum API key first.'); return; }
+
+            const btn = document.getElementById('weeklyBtn');
+            const status = document.getElementById('weeklyStatus');
+            btn.disabled = true;
+            btn.textContent = 'Fetching all calls...';
+            status.style.display = 'inline';
+            status.textContent = '';
+
+            try {
+                const resp = await fetch('/api/weekly-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                    alert(data.error || 'Failed to fetch weekly report');
+                    return;
+                }
+
+                const blob = new Blob([data.markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename || 'weekly-calls.md';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                status.textContent = `Downloaded ${data.count} calls`;
+            } catch (err) {
+                alert('Network error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Download Weekly Report (.md)';
+            }
         }
 
         function resetApp() {
