@@ -143,7 +143,7 @@ def analyze_keyword_calls(
         days: How many days back to search (default 30).
     """
     days = int(days)
-    kw_list = [k.strip() for k in keywords.split(",") if k.strip()] or KEYWORDS
+    kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
 
     now = datetime.now(timezone.utc)
     to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -153,7 +153,7 @@ def analyze_keyword_calls(
     if meetings is None:
         return json.dumps({"error": status_msg})
 
-    filtered = filter_meetings_by_keywords(meetings, kw_list)
+    filtered = filter_meetings_by_keywords(meetings, kw_list) if kw_list else meetings
     patterns = analyze_patterns(filtered)
 
     return json.dumps(

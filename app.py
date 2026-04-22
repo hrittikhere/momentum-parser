@@ -598,9 +598,7 @@ def fetch_meetings():
     if not api_key:
         return jsonify({"error": "API key is required"}), 400
 
-    keywords = KEYWORDS
-    if custom_keywords:
-        keywords = [k.strip() for k in custom_keywords.split(",") if k.strip()]
+    keywords = [k.strip() for k in custom_keywords.split(",") if k.strip()]
 
     now = datetime.now(timezone.utc)
     to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -615,7 +613,7 @@ def fetch_meetings():
     if meetings is None:
         return jsonify({"error": status_msg}), 400
 
-    filtered = filter_meetings_by_keywords(meetings, keywords)
+    filtered = filter_meetings_by_keywords(meetings, keywords) if keywords else meetings
     patterns = analyze_patterns(filtered)
 
     response = {
