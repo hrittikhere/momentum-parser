@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 from app import (
     KEYWORDS,
     analyze_patterns,
+    enrich_all_meetings,
     fetch_all_meetings,
     filter_meetings_by_keywords,
     filter_meetings_by_person,
@@ -153,7 +154,7 @@ def analyze_keyword_calls(
     if meetings is None:
         return json.dumps({"error": status_msg})
 
-    filtered = filter_meetings_by_keywords(meetings, kw_list) if kw_list else meetings
+    filtered = filter_meetings_by_keywords(meetings, kw_list) if kw_list else enrich_all_meetings(meetings)
     patterns = analyze_patterns(filtered)
 
     return json.dumps(

@@ -143,6 +143,36 @@ def filter_meetings_by_keywords(meetings, keywords):
     return results
 
 
+def enrich_all_meetings(meetings):
+    """Return all meetings in the same enriched structure as filter_meetings_by_keywords, without filtering."""
+    results = []
+    for meeting in meetings:
+        title = meeting.get("title", "")
+        attendees = meeting.get("attendees", [])
+        external = [a for a in attendees if not a.get("isInternal", True)]
+        internal = [a for a in attendees if a.get("isInternal", False)]
+        results.append({
+            "id": meeting.get("id"),
+            "title": title,
+            "startTime": meeting.get("startTime"),
+            "endTime": meeting.get("endTime"),
+            "host": meeting.get("host", {}),
+            "externalAttendees": [
+                {"name": a.get("name", ""), "email": a.get("email", "")}
+                for a in external
+            ],
+            "internalAttendees": [
+                {"name": a.get("name", ""), "email": a.get("email", "")}
+                for a in internal
+            ],
+            "titleMatch": False,
+            "transcriptMatches": [],
+            "matchCount": 0,
+            "fullTranscript": _format_transcript(meeting.get("transcript")),
+        })
+    return results
+
+
 def _format_transcript(transcript):
     if not transcript or not transcript.get("entries"):
         return ""
@@ -613,7 +643,7 @@ def fetch_meetings():
     if meetings is None:
         return jsonify({"error": status_msg}), 400
 
-    filtered = filter_meetings_by_keywords(meetings, keywords) if keywords else meetings
+    filtered = filter_meetings_by_keywords(meetings, keywords) if keywords else enrich_all_meetings(meetings)
     patterns = analyze_patterns(filtered)
 
     response = {
