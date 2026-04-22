@@ -58,8 +58,21 @@
             color: var(--text); font-size: 14px; outline: none;
             transition: border-color 0.2s;
         }
-        select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-        input:focus, select:focus { border-color: var(--accent); }
+        input:focus { border-color: var(--accent); }
+        .combobox { position: relative; }
+        .combobox-dropdown {
+            display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+            max-height: 220px; overflow-y: auto; z-index: 200;
+        }
+        .combobox-dropdown.visible { display: block; }
+        .combobox-option {
+            padding: 9px 14px; font-size: 13px; cursor: pointer;
+            border-bottom: 1px solid var(--border); color: var(--text);
+        }
+        .combobox-option:last-child { border-bottom: none; }
+        .combobox-option:hover, .combobox-option.focused { background: rgba(108,99,255,0.12); color: var(--accent); }
+        .combobox-empty { padding: 9px 14px; font-size: 13px; color: var(--text-muted); }
         .form-group { margin-bottom: 16px; }
 
         .btn {
@@ -499,9 +512,10 @@
                     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
                         <div style="flex: 1; min-width: 200px;">
                             <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Person Name</label>
-                            <select id="personName" style="width:100%">
-                                <option value="" disabled selected>Select a speaker...</option>
-                            </select>
+                            <div class="combobox">
+                                <input type="text" id="personName" placeholder="Search speakers..." autocomplete="off" oninput="filterPersonDropdown()" onfocus="openPersonDropdown()" onkeydown="handlePersonKey(event)" style="width:100%">
+                                <div class="combobox-dropdown" id="personDropdown"></div>
+                            </div>
                         </div>
                         <div style="width: 100px;">
                             <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Days back</label>
@@ -995,24 +1009,86 @@
             URL.revokeObjectURL(url);
         }
 
+        let allSpeakers = [];
+
         function populatePersonSelect() {
-            const select = document.getElementById('personName');
-            const speakers = appData.patterns.topSpeakers || {};
-            select.replaceChildren();
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.disabled = true;
-            placeholder.selected = true;
-            placeholder.textContent = 'Select a speaker...';
-            select.appendChild(placeholder);
-            Object.keys(speakers).forEach(name => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                const count = speakers[name];
-                opt.textContent = `${name} (${count} mention${count !== 1 ? 's' : ''})`;
-                select.appendChild(opt);
+            allSpeakers = (appData.patterns.allSpeakers || []).length
+                ? appData.patterns.allSpeakers
+                : Object.keys(appData.patterns.topSpeakers || {});
+            renderPersonOptions('');
+        }
+
+        function renderPersonOptions(query) {
+            const dropdown = document.getElementById('personDropdown');
+            const matches = query
+                ? allSpeakers.filter(s => s.toLowerCase().includes(query.toLowerCase()))
+                : allSpeakers;
+            dropdown.replaceChildren();
+            if (!matches.length) {
+                const empty = document.createElement('div');
+                empty.className = 'combobox-empty';
+                empty.textContent = query ? 'No matching speakers' : 'No speakers found';
+                dropdown.appendChild(empty);
+                return;
+            }
+            matches.forEach(name => {
+                const opt = document.createElement('div');
+                opt.className = 'combobox-option';
+                opt.textContent = name;
+                opt.addEventListener('mousedown', e => {
+                    e.preventDefault();
+                    document.getElementById('personName').value = name;
+                    dropdown.classList.remove('visible');
+                });
+                dropdown.appendChild(opt);
             });
         }
+
+        function filterPersonDropdown() {
+            const q = document.getElementById('personName').value;
+            renderPersonOptions(q);
+            document.getElementById('personDropdown').classList.add('visible');
+        }
+
+        function openPersonDropdown() {
+            renderPersonOptions(document.getElementById('personName').value);
+            document.getElementById('personDropdown').classList.add('visible');
+        }
+
+        function handlePersonKey(e) {
+            const dropdown = document.getElementById('personDropdown');
+            const opts = dropdown.querySelectorAll('.combobox-option');
+            const focused = dropdown.querySelector('.combobox-option.focused');
+            if (e.key === 'Escape') {
+                dropdown.classList.remove('visible');
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = focused ? focused.nextElementSibling : opts[0];
+                if (next && next.classList.contains('combobox-option')) {
+                    focused && focused.classList.remove('focused');
+                    next.classList.add('focused');
+                    next.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = focused && focused.previousElementSibling;
+                if (prev && prev.classList.contains('combobox-option')) {
+                    focused.classList.remove('focused');
+                    prev.classList.add('focused');
+                    prev.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'Enter' && focused) {
+                e.preventDefault();
+                document.getElementById('personName').value = focused.textContent;
+                dropdown.classList.remove('visible');
+            }
+        }
+
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.combobox')) {
+                document.getElementById('personDropdown')?.classList.remove('visible');
+            }
+        });
 
         async function downloadPersonReport() {
             const apiKey = storedApiKey || document.getElementById('apiKey').value.trim();

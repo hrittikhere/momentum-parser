@@ -193,6 +193,7 @@ def analyze_patterns(filtered_meetings):
     external_companies = Counter()
     timeline = Counter()
     all_snippets = []
+    all_people = set()
 
     keyword_pattern = re.compile(
         r"\b(" + "|".join(re.escape(k) for k in KEYWORDS) + r")\b", re.IGNORECASE
@@ -205,6 +206,17 @@ def analyze_patterns(filtered_meetings):
                 all_keyword_mentions[kw_match.lower()] += 1
             speakers[match["speaker"]] += 1
             all_snippets.append(match["text"])
+
+        # Collect all unique people across all meetings (host + all attendees)
+        host_name = (m.get("host") or {}).get("name", "")
+        if host_name:
+            all_people.add(host_name)
+        for att in m.get("externalAttendees", []):
+            if att.get("name"):
+                all_people.add(att["name"])
+        for att in m.get("internalAttendees", []):
+            if att.get("name"):
+                all_people.add(att["name"])
 
         # Track external attendees (potential customer segments)
         for att in m.get("externalAttendees", []):
@@ -230,6 +242,7 @@ def analyze_patterns(filtered_meetings):
         "totalMatches": len(filtered_meetings),
         "keywordFrequency": dict(all_keyword_mentions.most_common(20)),
         "topSpeakers": dict(speakers.most_common(10)),
+        "allSpeakers": sorted(all_people),
         "externalCompanies": dict(external_companies.most_common(15)),
         "meetingsPerDay": dict(sorted(timeline.items())),
         "meetingTitles": topics_by_meeting,
