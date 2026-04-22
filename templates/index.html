@@ -491,6 +491,26 @@
             <!-- Export Panel -->
             <div id="panel-export" class="panel">
                 <div class="pattern-card" style="margin-bottom: 16px;">
+                    <h3>Person Call Export</h3>
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+                        Export only the calls a specific person was on — their lines are highlighted for easy scanning. Great for capturing a leader's voice and stories for LinkedIn posts.
+                    </p>
+                    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Person Name</label>
+                            <input type="text" id="personName" placeholder="Enter person's name" style="width:100%">
+                        </div>
+                        <div style="width: 100px;">
+                            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Days back</label>
+                            <input type="text" id="personDays" value="7" style="width:100%">
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="downloadPersonReport()" id="personBtn">Download Calls (.md)</button>
+                        <span id="personStatus" style="font-size: 13px; color: var(--text-muted); display: none; align-self: center;"></span>
+                    </div>
+                </div>
+                <div class="pattern-card" style="margin-bottom: 16px;">
                     <h3>Weekly Markdown Report</h3>
                     <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
                         Download <strong>all calls from the past 7 days</strong> as a structured Markdown file — every call with title, attendees, and full transcript. No keyword filtering.
@@ -969,6 +989,49 @@
             a.download = `momentum-neocloud-gpu-export-${new Date().toISOString().slice(0,10)}.txt`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        async function downloadPersonReport() {
+            const apiKey = storedApiKey || document.getElementById('apiKey').value.trim();
+            if (!apiKey) { alert('Please enter your Momentum API key first.'); return; }
+            const personName = document.getElementById('personName').value.trim();
+            if (!personName) { alert('Please enter a person name.'); return; }
+            const days = parseInt(document.getElementById('personDays').value) || 7;
+
+            const btn = document.getElementById('personBtn');
+            const status = document.getElementById('personStatus');
+            btn.disabled = true;
+            btn.textContent = 'Fetching calls...';
+            status.style.display = 'inline';
+            status.textContent = '';
+
+            try {
+                const resp = await fetch('/api/person-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey, personName, days }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                    alert(data.error || 'Failed to fetch person report');
+                    return;
+                }
+
+                const blob = new Blob([data.markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename || 'person-calls.md';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                status.textContent = `${data.count} calls found (of ${data.total} total)`;
+            } catch (err) {
+                alert('Network error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Download Calls (.md)';
+            }
         }
 
         async function downloadWeeklyMarkdown() {

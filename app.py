@@ -441,6 +441,120 @@ def format_meetings_as_markdown(meetings, from_date, to_date, generated_at):
     return "\n".join(lines)
 
 
+def filter_meetings_by_person(meetings, person_name):
+    name_lower = person_name.lower().strip()
+    results = []
+    for m in meetings:
+        host = m.get("host") or {}
+        if name_lower in (host.get("name") or "").lower():
+            results.append(m)
+            continue
+        for a in (m.get("attendees") or []):
+            if name_lower in (a.get("name") or "").lower():
+                results.append(m)
+                break
+    return results
+
+
+def format_person_meetings_as_markdown(meetings, person_name, from_date, to_date, generated_at):
+    lines = [
+        f"# Calls Featuring {person_name} — {from_date[:10]} to {to_date[:10]}",
+        f"_For LinkedIn post ideation · Generated: {generated_at}_  ",
+        f"_Calls found: {len(meetings)}_",
+        "",
+        "> Use these transcripts to identify stories, insights, and customer moments",
+        "> that {person_name} experienced directly — raw material for authentic LinkedIn posts.".replace("{person_name}", person_name),
+        "",
+        "---",
+        "",
+    ]
+
+    for i, m in enumerate(meetings):
+        title = m.get("title") or "Untitled Meeting"
+        start = m.get("startTime", "")
+        end = m.get("endTime", "")
+        host = m.get("host") or {}
+        attendees = m.get("attendees") or []
+        external = [a for a in attendees if not a.get("isInternal", True)]
+        others = [a for a in attendees if person_name.lower() not in (a.get("name") or "").lower()]
+
+        host_name = host.get("name", "Unknown")
+        is_host = person_name.lower() in host_name.lower()
+        role = "Host" if is_host else "Attendee"
+
+        lines.append(f"## {i + 1}. {title}")
+        lines.append(f"**Date:** {start[:10] if start else 'Unknown'}  ")
+        lines.append(f"**{person_name}'s Role:** {role}  ")
+
+        if external:
+            ext_str = ", ".join(a.get("name") or a.get("email", "") for a in external if a.get("name") or a.get("email"))
+            if ext_str:
+                lines.append(f"**External Attendees:** {ext_str}  ")
+
+        other_names = [a.get("name") for a in others if a.get("name") and person_name.lower() not in a.get("name", "").lower()]
+        if other_names:
+            lines.append(f"**Also on the call:** {', '.join(other_names[:8])}  ")
+
+        lines.append("")
+
+        transcript = m.get("transcript")
+        if transcript and transcript.get("entries"):
+            lines.append("### Transcript")
+            lines.append("")
+            for entry in transcript["entries"]:
+                speaker = entry.get("speaker", {}).get("name", "Unknown")
+                text = entry.get("text", "")
+                ts = entry.get("timestamp", "")
+                ts_part = f" _{ts}_" if ts else ""
+                if person_name.lower() in speaker.lower():
+                    # Bold + mark person's own lines
+                    lines.append(f"**>> [{speaker}]**{ts_part}: {text}")
+                else:
+                    lines.append(f"[{speaker}]{ts_part}: {text}")
+        else:
+            lines.append("_No transcript available._")
+
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+@app.route("/api/person-report", methods=["POST"])
+def person_report():
+    body = request.json or {}
+    api_key = body.get("apiKey", "").strip()
+    person_name = body.get("personName", "").strip()
+    days = min(int(body.get("days", 7)), 90)
+
+    if not api_key:
+        return jsonify({"error": "API key is required"}), 400
+    if not person_name:
+        return jsonify({"error": "Person name is required"}), 400
+
+    now = datetime.now(timezone.utc)
+    to_date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    from_date = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    meetings, status_msg = fetch_all_meetings(api_key, from_date, to_date)
+    if meetings is None:
+        return jsonify({"error": status_msg}), 400
+
+    filtered = filter_meetings_by_person(meetings, person_name)
+    generated_at = now.strftime("%Y-%m-%d %H:%M UTC")
+    markdown = format_person_meetings_as_markdown(filtered, person_name, from_date, to_date, generated_at)
+
+    safe_name = re.sub(r"[^a-z0-9]+", "-", person_name.lower()).strip("-")
+    return jsonify({
+        "markdown": markdown,
+        "count": len(filtered),
+        "total": len(meetings),
+        "status": status_msg,
+        "filename": f"calls-{safe_name}-{from_date[:10]}-to-{to_date[:10]}.md",
+    })
+
+
 @app.route("/api/weekly-report", methods=["POST"])
 def weekly_report():
     body = request.json or {}
